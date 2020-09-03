@@ -24,6 +24,7 @@ class Test(Base):
     s = sqlalchemy.Column(sqlalchemy.String(32), primary_key=True)
     i = sqlalchemy.Column(sqlalchemy.INT)  # 2020/3/31 客户端标识
     i2 = sqlalchemy.Column(sqlalchemy.INT)
+    create_time = sqlalchemy.Column(sqlalchemy.DATETIME, default=datetime.datetime.now())
 
 
 # class FileInfo(Base):
@@ -129,11 +130,18 @@ class DataBase(object):
                 cnt = query_t.count()
                 print((row_t.s, row_t.i, row_t.i2), '\n', cnt)
             return True
-            
+
+    def _order_by_multi(self):
+        # 多个字段 规则排序
+        with self.session_scope() as session:
+            query_t = session.query(Test).order_by(Test.i, Test.create_time.desc())
+            for row_t in query_t.all():
+                print((row_t.s, row_t.i, row_t.i2, row_t.create_time))
+            return True
             
 db = DataBase()
 
 
 if __name__ == '__main__':
     # db.query_agent_upload()
-    db._substring_index()
+    db._order_by_multi()
