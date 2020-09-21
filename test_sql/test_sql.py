@@ -138,10 +138,46 @@ class DataBase(object):
             for row_t in query_t.all():
                 print((row_t.s, row_t.i, row_t.i2, row_t.create_time))
             return True
-            
+
+    def _ret_single_value(self):
+        # 这里是返回不了单个值的，而是返回一个元组(1, ) 需要取值，有一点麻烦
+        with self.session_scope() as session:
+            query_t = session.query(Test.i).first()
+            # _query_t = session.query(Test.i).first()[0]
+            print(query_t)
+            # print(_query_t)
+            return True
+
+    def _ret_timestamp(self):
+        # 这里是返回不了单个值的，而是返回一个元组(1, ) 需要取值，有一点麻烦
+        with self.session_scope() as session:
+            query_t = session.query(Test).first()
+            print(query_t.create_time.timestamp())
+            # _query_t = session.query(Test.i).first()[0]
+            # print(query_t)
+            # print(_query_t)
+            return True
+
+    def _compare_datetime_type(self):
+        # 支持mysql datetime类型与datetime类型直接比较
+        with self.session_scope() as session:
+            query_t = session.query(Test).filter(
+                Test.create_time < datetime.datetime.now()
+            )
+            row_t = query_t.first()
+            if row_t:
+                print(row_t.create_time)
+                return True
+            else:
+                return False
+        
+        
 db = DataBase()
 
 
 if __name__ == '__main__':
     # db.query_agent_upload()
-    db._order_by_multi()
+    # db._order_by_multi()
+    # db._ret_single_value()
+    # db._ret_timestamp()
+    db._compare_datetime_type()
