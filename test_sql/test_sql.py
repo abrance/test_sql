@@ -27,6 +27,34 @@ class Test(Base):
     create_time = sqlalchemy.Column(sqlalchemy.DATETIME, default=datetime.datetime.now())
 
 
+
+class RecordLog(Base):
+    __tablename__ = "record_log"
+    mysql_charset = "utf8mb4"
+    # 2020/9/21 按照一个目录只能归档一遍的原则，将目录名设置为主键，当有覆盖时，将取消掉上次的归档
+    # 2020/9/21 这些是目录本身的属性， store_year决定了 pool 和 pool_no；规则可以制定
+    id = sqlalchemy.Column(sqlalchemy.INT, nullable=False, primary_key=True, autoincrement=True)
+    dir_name = sqlalchemy.Column(sqlalchemy.String)
+
+    pool = sqlalchemy.Column(sqlalchemy.String)
+    pool_no = sqlalchemy.Column(sqlalchemy.String)
+    store_year = sqlalchemy.Column(sqlalchemy.INT)
+
+    dir_level = sqlalchemy.Column(sqlalchemy.INT, nullable=False)
+    dir_type = sqlalchemy.Column(sqlalchemy.String)
+    store_time = sqlalchemy.Column(sqlalchemy.INT)
+    case_no = sqlalchemy.Column(sqlalchemy.INT)
+
+    # 2020/9/21 非归档目录的归档目录名是 上层目录，归档目录的是它自己
+    archived_name = sqlalchemy.Column(sqlalchemy.String)
+
+    # 2020/9/21 下面这俩只有归档目录才会有
+    leaf_dirs = sqlalchemy.Column(sqlalchemy.TEXT)
+    pool_no_ls = sqlalchemy.Column(sqlalchemy.String)
+
+
+
+    
 # class FileInfo(Base):
 #     """这是一张大表，每个文件有一行记录，大约有一亿条以上的记录
 
@@ -170,7 +198,66 @@ class DataBase(object):
                 return True
             else:
                 return False
+
+    def _row_attr_to_dc(self):
+        # 试试让row的属性变为字典, 测试是可行的
+        with self.session_scope() as session:
+            query_t = session.query(Test).first()
+            
+            query_t.__dict__.pop('_sa_instance_state', -1)
+            d1 = {}
+            d1.update(query_t.__dict__)
+            i = d1.get('i')
+            print(i)
+            print(query_t.__dict__)
+            
+            return True
         
+    def save_record_cache_to_db(self, dir_name, info: dict):
+        print('<<<< save_record_cache_to_db dir_name: {} info: {}'.format(dir_name, info))
+        try:
+            with self.session_scope() as session:
+                cnt = session.query(func.count(RecordLog.id)).filter(
+                    RecordLog.dir_name == dir_name
+                ).scalar()
+                # 2020/9/22 修改info里的leaf_dirs和pool_no_ls，列表转为字符串
+                leaf_dirs = info.get('leaf_dirs')
+                pool_no_ls = info.get('pool_no_ls')
+                if isinstance(leaf_dirs, list):
+                    str_leaf_dirs = ','.join(leaf_dirs)
+                    info.__setitem__('leaf_dirs', str_leaf_dirs)
+                if pool_no_ls:
+                    pool_no_ls = ','.join(pool_no_ls)
+                    info.__setitem__('pool_no_ls', pool_no_ls)
+                v = info.pop('disk_no')
+                info.__setitem__('pool_no', v)
+                if cnt == 0:
+                    row_rl = RecordLog(**info)
+                    print('<<<< save_record_cache_to_db dir_name: {}'.format(dir_name))
+                    session.add(row_rl)
+                    return True
+                elif cnt == 1:
+                    # 2020/9/21 如果已经归档，如果还未归档两种情况
+                    session.query(RecordLog).filter(
+                        RecordLog.dir_name == dir_name
+                    ).update(info)
+                    print('<<<< save_record_cache_to_db update dir_name')
+                    return True
+                else:
+                    print('<<<< record log dir_name duplicate: {}'.format(dir_name))
+                    return False
+        except Exception as e:
+            print('<<<< save_record_cache_to_db error {}'.format(e))
+            return False
+
+
+    def test_group_by(self):
+        with self.session_scope() as session:
+            query_t = session.query(Test.i).group_by(Test.i)
+            
+            print([i[0] for i in query_t.all()])
+            
+            return True
         
 db = DataBase()
 
@@ -180,4 +267,8 @@ if __name__ == '__main__':
     # db._order_by_multi()
     # db._ret_single_value()
     # db._ret_timestamp()
-    db._compare_datetime_type()
+    # db._compare_datetime_type()
+    # db._row_attr_to_dc()
+    # db.save_record_cache_to_db('/data/303',  {'dir_name': '/data/303', 'dir_level': 2, 'store_year': 0, 'dir_type': '', 'store_time': -1, 'case_no': '', 'disk_no': '', 'pool_no_ls': ['POOL-20200717090945'], 'leaf_dirs': ['/data/303/303-2020/303-2020-30']})
+    db.test_group_by()
+    
